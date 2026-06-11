@@ -1,0 +1,59 @@
+account:
+  equity: 10000
+  risk_per_trade: 0.01
+  max_open_trades: 3
+  max_daily_loss: 0.03
+
+strategy:
+  timeframe: "5m"
+  lookback_bars: 300
+  top_n_pairs: 6
+  min_adx: 18
+  fast_ema: 9
+  slow_ema: 21
+  trend_ema: 200
+  rsi_period: 14
+  atr_period: 14
+  stop_atr_multiple: 1.2
+  reward_risk: 1.5
+  break_even_at_r: 1.0
+  trailing_atr_multiple: 0.8
+
+filters:
+  trade_days_utc: [0, 1, 2, 3, 4]
+  london_new_york_overlap_only: true
+  session_start_utc: "12:00"
+  session_end_utc: "16:00"
+  max_spread_pips:
+    EURUSD: 1.2
+    GBPUSD: 1.8
+    USDJPY: 1.4
+    AUDUSD: 1.6
+    NZDUSD: 1.8
+    USDCAD: 1.8
+    USDCHF: 1.8
+    EURJPY: 2.0
+    GBPJPY: 2.8
+    AUDJPY: 2.2
+    EURGBP: 1.6
+    EURAUD: 2.4
+
+universe:
+  - EURUSD
+  - GBPUSD
+  - USDJPY
+  - AUDUSD
+  - NZDUSD
+  - USDCAD
+  - USDCHF
+  - EURJPY
+  - GBPJPY
+  - AUDJPY
+  - EURGBP
+  - EURAUD
+
+execution:
+  mode: "dry_run"
+  mt5_deviation_points: 20
+  mt5_magic: 260610
+  poll_seconds: 30

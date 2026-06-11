@@ -1,0 +1,7 @@
+pandas>=2.2.0
+numpy>=1.26.0
+PyYAML>=6.0.1
+python-dotenv>=1.0.1
+requests>=2.32.0
+yfinance>=0.2.40
+MetaTrader5>=5.0.45
