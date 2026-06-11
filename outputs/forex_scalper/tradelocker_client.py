@@ -71,13 +71,15 @@ class TradeLockerClient:
         self.discover_account()
 
     def discover_account(self) -> None:
+        # Fetch accounts
         response = self._first_success("get", "accounts")
         data = response.json()
         accounts = self._extract_list(data)
+
         if not accounts:
             raise RuntimeError("Logged in, but no TradeLocker accounts were returned.")
 
-        # If account_id was pre-configured, find the matching account; else use first
+        # Select account
         if self.account_id:
             matched = next(
                 (
@@ -89,34 +91,79 @@ class TradeLockerClient:
             self.account = matched or accounts[0]
         else:
             self.account = accounts[0]
-            self.account_id = str(
-                self.account.get("id")
-                or self.account.get("accountId")
-                or self.account.get("tradableInstrumentAccountId")
-                or ""
-            )
-            if not self.account_id:
-                raise RuntimeError(f"Could not infer account_id from account response: {self.account}")
 
+        # Extract account_id
+        self.account_id = str(
+            self.account.get("id")
+            or self.account.get("accountId")
+            or self.account.get("tradableInstrumentAccountId")
+            or ""
+        )
+
+        if not self.account_id:
+            raise RuntimeError(f"Could not infer account_id from account response: {self.account}")
+
+        # Extract account number
         self.account_number = self.account_number or str(
             self.account.get("accNum") or self.account.get("accountNumber") or ""
         )
-        # Capture routeId so place_market_order can always include it
-        self.route_id = str(
-            self.account.get("routeId")
-            or self.account.get("tradeRouteId")
-            or (self.account.get("tradeRoute") or {}).get("id", "")
-            or ""
-        )
-        if not self.route_id:
-            import json as _json
-            print(f"[DEBUG] route_id not found. Account keys: {list(self.account.keys())}")
-            print(f"[DEBUG] Full account: {_json.dumps(self.account, default=str)[:600]}")
-        else:
-            print(f"[DEBUG] route_id resolved: {self.route_id}")
+
+        # ---------------------------------------------------------
+        # FIX: Set headers BEFORE calling instruments()
+        # ---------------------------------------------------------
         self.session.headers.update({"accountId": self.account_id})
         if self.account_number:
             self.session.headers.update({"accNum": self.account_number})
+
+        # ---------------------------------------------------------
+        # GATESFX FIX: Resolve routeId from instrument routes
+        # ---------------------------------------------------------
+        try:
+            instruments = self.instruments()
+            if instruments:
+                first = instruments[0]
+                routes = first.get("routes", [])
+                trade_route = next((r for r in routes if r.get("type") == "TRADE"), None)
+                if trade_route:
+                    self.route_id = str(trade_route.get("id"))
+                    print(f"[DEBUG] route_id resolved from instrument routes: {self.route_id}")
+        except Exception as e:
+            print("[DEBUG] Failed to resolve routeId from instruments:", e)
+
+        # ---------------------------------------------------------
+        # Fallback: old TradeLocker route discovery
+        # ---------------------------------------------------------
+        if not self.route_id:
+            for path in [
+                f"/trade/accounts/{self.account_id}/tradeRoutes",
+                f"/trade/accounts/{self.account_id}/routes",
+                f"/accounts/{self.account_id}/tradeRoutes",
+            ]:
+                try:
+                    r = self.session.get(f"{self.api_base}{path}", timeout=10)
+                    if r.status_code == 200:
+                        routes = self._extract_list(r.json())
+                        if routes:
+                            self.route_id = str(
+                                routes[0].get("id")
+                                or routes[0].get("routeId")
+                                or routes[0].get("tradeRouteId")
+                                or ""
+                            )
+                            if self.route_id:
+                                print(f"[DEBUG] route_id fetched from {path}: {self.route_id}")
+                                break
+                except Exception:
+                    continue
+
+        # Final debug
+        if not self.route_id:
+            print(f"[DEBUG] route_id not found. Account keys: {list(self.account.keys())}")
+            import json as _json
+            print(f"[DEBUG] Full account: {_json.dumps(self.account, default=str)[:600]}")
+        else:
+            print(f"[DEBUG] route_id resolved: {self.route_id}")
+
 
     def instruments(self) -> list[dict[str, Any]]:
         if self._instruments_cache is not None:
